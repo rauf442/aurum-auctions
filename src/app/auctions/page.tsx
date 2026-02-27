@@ -1,0 +1,181 @@
+// frontend/aurum/src/app/auctions/page.tsx
+export const dynamic = 'force-dynamic';
+// Purpose: Aurum Auctions listing with filters using public API, matching dark theme with gold accents
+import Link from 'next/link';
+import Image from 'next/image';
+import { getPublicAuctions, type Auction } from '@msaber/shared';
+
+function formatDate(d?: string) {
+  if (!d) return '';
+  const dt = new Date(d);
+  return dt.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+}
+
+function getStatusLabel(status: string) {
+  switch (status) {
+    case 'planned': return 'Upcoming';
+    case 'in_progress': return 'Live Now';
+    case 'ended': return 'Completed';
+    default: return status;
+  }
+}
+
+export default async function AuctionsPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  const sp = await searchParams;
+  const status = (sp.status as string) || 'planned';
+  const type = (sp.type as string) || 'all';
+  const search = (sp.search as string) || '';
+  const page = Number(sp.page || 1);
+
+  let auctions: Auction[] = [];
+  let pagination = { page, limit: 24, total: 0, pages: 1 };
+  let error: string | null = null;
+
+  try {
+    const res = await getPublicAuctions({ status, type, search, page, limit: 24, sort_field: 'settlement_date', sort_direction: 'asc' });
+    auctions = res.auctions;
+    pagination = res.pagination;
+  } catch (err) {
+    error = 'Failed to load auctions. Please try again later.';
+    console.error('Error fetching auctions:', err);
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-black via-gray-900 to-black">
+      <main className="container mx-auto px-4 py-12">
+        {/* Header Section */}
+        <div className="text-center mb-12">
+          <h1 className="text-4xl font-bold text-[#fae070] mb-4">Auctions</h1>
+          <p className="text-neutral-300 text-lg max-w-2xl mx-auto">
+            Discover exceptional items and collectibles in our curated auctions
+          </p>
+        </div>
+
+        {/* Status Filters */}
+        <div className="flex flex-wrap justify-center gap-3 mb-12">
+          {[
+            { key: 'planned', label: 'Upcoming' },
+            { key: 'in_progress', label: 'Live Now' },
+            { key: 'ended', label: 'Completed' }
+          ].map(({ key, label }) => (
+            <Link
+              key={key}
+              href={`/auctions?status=${key}`}
+              className={`px-6 py-3 rounded-lg border-2 font-medium transition-all duration-200 ${
+                status === key
+                  ? 'bg-[#fae070] text-black border-[#fae070] shadow-lg shadow-[#fae070]/25'
+                  : 'bg-neutral-900 text-[#fae070] border-[#fae070]/30 hover:border-[#fae070] hover:bg-[#fae070]/10'
+              }`}
+            >
+              {label}
+            </Link>
+          ))}
+        </div>
+
+        {/* Error State */}
+        {error && (
+          <div className="text-center py-12">
+            <div className="bg-red-900/20 border border-red-500/30 rounded-lg p-6 max-w-md mx-auto">
+              <p className="text-red-400">{error}</p>
+            </div>
+          </div>
+        )}
+
+        {/* Auctions Grid */}
+        {!error && (
+          <>
+            {auctions.length === 0 ? (
+              <div className="text-center py-16">
+                <div className="text-6xl mb-4">🏛️</div>
+                <h3 className="text-xl font-semibold text-[#fae070] mb-2">No auctions found</h3>
+                <p className="text-neutral-400">Check back later for upcoming auctions</p>
+              </div>
+            ) : (
+              <>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-12">
+                  {auctions.map((auction: Auction) => (
+                    <Link
+                      key={auction.id}
+                      href={`/auctions/${auction.id}`}
+                      className="group block bg-neutral-900/50 rounded-xl shadow-lg hover:shadow-2xl hover:shadow-[#fae070]/10 transition-all duration-300 border border-[#fae070]/20 hover:border-[#fae070]/40 overflow-hidden"
+                    >
+                      {/* Image Placeholder */}
+                      <div className="aspect-[16/10] bg-gradient-to-br from-neutral-800 to-neutral-900 relative overflow-hidden">
+                        {auction.title_image_url ? (
+                          <Image
+                            src={auction.title_image_url}
+                            alt={auction.long_name || auction.short_name}
+                            fill
+                            style={{objectFit: 'cover'}}
+                            className="group-hover:scale-105 transition-transform duration-300"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center">
+                            <div className="text-4xl opacity-30">🏛️</div>
+                          </div>
+                        )}
+                        {/* Status Badge */}
+                        <div className="absolute top-3 right-3 px-2 py-1 bg-black/70 text-[#fae070] text-xs font-medium rounded">
+                          {getStatusLabel(auction.status || 'planned')}
+                        </div>
+                      </div>
+
+                      {/* Content */}
+                      <div className="p-6">
+                        <div className="text-sm text-[#fae070]/70 uppercase tracking-wide mb-2">
+                          {auction.type?.toUpperCase?.()} AUCTION
+                        </div>
+                        <h3 className="text-xl font-bold text-white group-hover:text-[#fae070] transition-colors line-clamp-2 mb-3">
+                          {auction.long_name || auction.short_name}
+                        </h3>
+                        <div className="flex items-center justify-between text-sm">
+                          <div className="text-neutral-300">
+                            <div className="font-medium">{formatDate(auction.settlement_date)}</div>
+                            {auction.settlement_date && (
+                              <div className="text-neutral-500 text-xs">
+                                Settlement Date
+                              </div>
+                            )}
+                          </div>
+                          {auction.total_estimate_low && auction.total_estimate_high && (
+                            <div className="text-right">
+                              <div className="text-[#fae070] font-medium">
+                                £{auction.total_estimate_low.toLocaleString()} - £{auction.total_estimate_high.toLocaleString()}
+                              </div>
+                              <div className="text-neutral-500 text-xs">Estimated Value</div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+
+                {/* Pagination */}
+                {pagination.pages > 1 && (
+                  <div className="flex justify-center items-center gap-2">
+                    {Array.from({ length: pagination.pages }, (_, i) => i + 1).map((p) => (
+                      <Link
+                        key={p}
+                        href={`/auctions?status=${status}&page=${p}`}
+                        className={`px-4 py-2 rounded-lg border-2 font-medium transition-all duration-200 ${
+                          p === pagination.page
+                            ? 'bg-[#fae070] text-black border-[#fae070]'
+                            : 'bg-neutral-900 text-[#fae070] border-[#fae070]/30 hover:border-[#fae070] hover:bg-[#fae070]/10'
+                        }`}
+                      >
+                        {p}
+                      </Link>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+          </>
+        )}
+      </main>
+    </div>
+  );
+}
+
+
